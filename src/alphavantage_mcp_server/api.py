@@ -1,4 +1,5 @@
 import os
+import logging
 
 import httpx
 from dotenv import load_dotenv
@@ -6,6 +7,28 @@ from dotenv import load_dotenv
 from .telemetry_instrument import instrument_tool
 
 load_dotenv()
+
+# Setup Logging
+file_handler = logging.FileHandler('/tmp/mcp.log')
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger = logging.getLogger('alphavantage_mcp')
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    logger.addHandler(file_handler)
+
+def log_transaction(response):
+    try:
+        req = response.request
+        log_message = (
+            f"Request: {req.method} {req.url}\n"
+            f"Request Headers: {dict(req.headers)}\n"
+            f"Response Status: {response.status_code}\n"
+            f"Response Headers: {dict(response.headers)}\n"
+            f"Response Content: {response.text}"
+        )
+        logger.info(log_message)
+    except Exception as e:
+        logger.error(f"Failed to log transaction: {e}")
 
 API_KEY = os.getenv("ALPHAVANTAGE_API_KEY")
 if not API_KEY:
@@ -19,6 +42,7 @@ async def _make_api_request(
 ) -> dict[str, str] | str:
     async with httpx.AsyncClient() as client:
         response = await client.get(API_BASE_URL, params=https_params)
+        log_transaction(response)
         response.raise_for_status()
         return response.text if datatype == "csv" else response.json()
 
@@ -592,6 +616,7 @@ async def fetch_cash_flow(symbol: str) -> dict[str, str]:
     }
     async with httpx.AsyncClient() as client:
         response = await client.get(API_BASE_URL, params=https_params)
+        log_transaction(response)
         response.raise_for_status()
         return response.json()
 
@@ -1445,6 +1470,7 @@ async def fetch_sma(
 
     async with httpx.AsyncClient() as client:
         response = await client.get(API_BASE_URL, params=https_params)
+        log_transaction(response)
         response.raise_for_status()
 
         if datatype == "csv":
